@@ -321,7 +321,19 @@ If you switch back to `SEMANTIC_SIMILARITY`, short brand names (Nike, Adidas, Pu
 cluster together and will get false merges. Always use `RETRIEVAL_DOCUMENT` for
 entity deduplication.
 
-### 6. Thresholds are data-dependent
+### 6. Extreme abbreviations score poorly in embeddings
+The pipeline currently fails to merge `"sai"` and `"sports authority of india"`.
+Because the strings look completely different, their embedding score is only `0.80`.
+Since this is below our `0.82` floor, the pipeline treats them as different orgs
+without ever asking the LLM (which would know they are the same).
+
+**The trade-off:** We could lower the floor to `0.75` to catch this. But probing
+shows that `"nike"` vs `"puma"` scores `0.81`. If we lower the floor to `0.75`,
+SAI gets fixed, but Nike/Puma also gets sent to the LLM. The LLM will correctly
+keep them separate, but you end up paying for many more LLM calls on obvious
+negatives. For this project, we accept missing extreme abbreviations to save LLM cost.
+
+### 7. Thresholds are data-dependent
 The values `0.94` and `0.82` were calibrated against this specific dataset and
 embedding model. If you change the model or use very different data, re-probe
 the scores and recalibrate. Print cosine similarity for known true-positive pairs
