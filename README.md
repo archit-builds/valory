@@ -68,11 +68,30 @@ cd backend
 python -m app.seed.seed_runner
 ```
 
-This loads `app/seed/athletes_seed.json` (20 athletes with deliberate
-near-duplicate org names — Nike/Nike India, Yonex/Yonex Sports India,
-Gopichand Academy/Gopichand Badminton Academy, SAI/Sports Authority of
-India, a shared coach across 3 athletes, and several exact-duplicate orgs)
-and prints live progress per athlete + a final summary with the resolved
+This loads `app/seed/athletes_seed.json` — **20 Indian athletes across 7 sports**,
+primarily from Olympic disciplines (not cricket-focused), with deliberate
+near-duplicate org name pairs to stress-test the pipeline.
+
+### Sample athletes in the seed
+
+| Athlete | Sport | Org names used (to test dedup) |
+|---|---|---|
+| PV Sindhu | Badminton | Nike, Gopichand Academy |
+| Neeraj Chopra | Javelin | **Nike India** ← merges into Nike |
+| Saina Nehwal | Badminton | Yonex, **Gopichand Badminton Academy** |
+| Kidambi Srikanth | Badminton | **Yonex Sports India** ← merges into Yonex |
+| Mary Kom | Boxing | Boxing Federation of India, Charles Atkinson (coach) |
+| Abhinav Bindra | Shooting | Sports Authority of India |
+| Manu Bhaker | Shooting | **SAI** ← Layer 3 decides vs Sports Authority of India |
+| Hima Das | Athletics | **Adidas India** ← merges into Adidas |
+| Deepika Kumari | Archery | Tata Archery Academy |
+| Bajrang Punia | Wrestling | Adidas |
+
+> Charles Atkinson is a shared coach across 3 athletes (Mary Kom, Lovlina Borgohain,
+> Amit Panghal) — tests that a person referenced by name is correctly deduped as
+> a single `entity_kind=coach` org across multiple athletes.
+
+The seed prints live progress per athlete + a final summary with the resolved
 org list. **Safe to re-run** — fully idempotent across all three collections.
 
 ## Run the API
