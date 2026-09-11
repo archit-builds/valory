@@ -178,11 +178,11 @@ a false merge. `RETRIEVAL_DOCUMENT` is stricter about identity-level matching.
 
 **Real-world scores observed (RETRIEVAL_DOCUMENT):**
 ```
-"nike"  vs  "nike india"          → 0.91  (ambiguous band → LLM)
-"adidas" vs "adidas india"        → 0.92  (ambiguous band → LLM)
-"nike"  vs  "adidas"              → 0.85  (just below floor → new org — correct!)
-"gopichand academy" vs "gopichand badminton academy" → 0.99 (auto-merged)
-"sports authority of india" vs "sai" → 0.80 (ambiguous band → LLM)
+"nike"  vs  "nike india"          → 0.91  (ambiguous band → LLM → same: true  → merged ✓)
+"adidas" vs  "adidas india"       → 0.92  (ambiguous band → LLM → same: true  → merged ✓)
+"nike"  vs  "adidas"              → 0.85  (ambiguous band → LLM → same: false → new org ✓)
+"gopichand academy" vs "gopichand badminton academy" → 0.99 (above 0.94 → auto-merged ✓)
+"sports authority of india" vs "sai" → 0.80 (below 0.82 floor → new org, no LLM call ✓)
 ```
 
 **Edge case — what if Gemini API fails?**
