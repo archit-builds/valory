@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Valory — Athlete/Org Resolution Admin</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e38;
+    --text: #e6e8eb;
+    --muted: #9aa0aa;
+    --accent: #5b8cff;
+    --green: #3ecf8e;
+    --amber: #f5b942;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header input {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    width: 260px;
+  }
+  nav {
+    display: flex;
+    gap: 4px;
+    padding: 12px 28px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  nav button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+  }
+  nav button.active {
+    color: var(--text);
+    border-bottom: 2px solid var(--accent);
+  }
+  main { padding: 24px 28px; max-width: 1100px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.03em; }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pill-exact { background: rgba(62,207,142,0.15); color: var(--green); }
+  .pill-embedding { background: rgba(91,140,255,0.15); color: var(--accent); }
+  .pill-llm { background: rgba(245,185,66,0.15); color: var(--amber); }
+  .pill-new { background: rgba(154,160,170,0.15); color: var(--muted); }
+  .pill-merged { background: rgba(62,207,142,0.15); color: var(--green); }
+  .aliases { color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+  .loading { color: var(--muted); padding: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Valory — Athlete / Organisation Resolution</h1>
+  <input id="apiBase" value="http://127.0.0.1:8000" />
+</header>
+
+<nav>
+  <button class="active" data-view="athletes">Athletes</button>
+  <button data-view="orgs">Organisations</button>
+  <button data-view="logs">Resolution Log</button>
+</nav>
+
+<main id="app">
+  <div class="loading">Loading…</div>
+</main>
+
+<script>
+const apiBaseInput = document.getElementById('apiBase');
+const app = document.getElementById('app');
+const buttons = document.querySelectorAll('nav button');
+
+let currentView = 'athletes';
+
+buttons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentView = btn.dataset.view;
+    render();
+  });
+});
+
+apiBaseInput.addEventListener('change', render);
+
+async function fetchJSON(path) {
+  const base = apiBaseInput.value.replace(/\/$/, '');
+  const res = await fetch(base + path);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+async function render() {
+  app.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    if (currentView === 'athletes') await renderAthletes();
+    else if (currentView === 'orgs') await renderOrgs();
+    else if (currentView === 'logs') await renderLogs();
+  } catch (err) {
+    app.innerHTML = `<div class="empty">Couldn't reach the API at ${apiBaseInput.value}.<br/>Is the backend running? (${err.message})</div>`;
+  }
+}
+
+async function renderAthletes() {
+  const athletes = await fetchJSON('/athletes');
+  if (!athletes.length) {
+    app.innerHTML = '<div class="empty">No athletes yet — run the seed script.</div>';
+    return;
+  }
+  const rows = athletes.map(a => `
+    <tr>
+      <td>${a.full_name}</td>
+      <td>${a.dob || '—'}</td>
+      <td>${(a.disciplines || []).join(', ') || '—'}</td>
+      <td>${a.primary_location || '—'}${a.state ? ', ' + a.state : ''}</td>
+    </tr>
+  `).join('');
+  app.innerHTML = `
+    <table>
+      <thead><tr><th>Name</th><th>DOB</th><th>Discipline</th><th>Location</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+async function renderOrgs() {
+  const orgs = await fetchJSON('/organisations');
+  if (!orgs.length) {
+    app.innerHTML = '<div class="empty">No organisations yet — run the seed script.</div>';
+    return;
+  }
+  const rows = orgs.map(o => {
+    const aliases = (o.known_names || []).map(k => k.name).join(', ');
+    return `
+      <tr>
+        <td>${o.canonical_name}</td>
+        <td>${o.entity_kind}</td>
+        <td class="aliases">${aliases}</td>
+      </tr>
+    `;
+  }).join('');
+  app.innerHTML = `
+    <table>
+      <thead><tr><th>Canonical Name</th><th>Type</th><th>Known Names (aliases)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function methodPill(method) {
+  const cls = { exact: 'exact', embedding: 'embedding', llm: 'llm' }[method] || 'new';
+  return `<span class="pill pill-${cls}">${method}</span>`;
+}
+
+function decisionPill(decision) {
+  const cls = decision === 'merged' ? 'merged' : 'new';
+  return `<span class="pill pill-${cls}">${decision}</span>`;
+}
+
+async function renderLogs() {
+  const data = await fetchJSON('/resolution-logs?limit=100');
+  if (!data.results.length) {
+    app.innerHTML = '<div class="empty">No resolution decisions logged yet — run the seed script.</div>';
+    return;
+  }
+  const rows = data.results.map(l => `
+    <tr>
+      <td>${l.input_org_name}</td>
+      <td>${l.matched_canonical_name || '—'}</td>
+      <td>${methodPill(l.method)}</td>
+      <td>${l.score != null ? Number(l.score).toFixed(2) : '—'}</td>
+      <td>${decisionPill(l.decision)}</td>
+      <td class="aliases">${l.llm_reasoning || '—'}</td>
+    </tr>
+  `).join('');
+  app.innerHTML = `
+    <table>
+      <thead><tr><th>Input Name</th><th>Matched Org</th><th>Method</th><th>Score</th><th>Decision</th><th>LLM Reasoning</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+render();
+</script>
+
+</body>
+</html>
