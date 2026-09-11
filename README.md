@@ -8,8 +8,8 @@ one canonical org instead of duplicates — with every decision logged.
 
 ```
 Layer 1 — Normalize + exact match      (free, instant)
-Layer 2 — Gemini embedding similarity  (semantic — catches SAI vs
-                                         "Sports Authority of India")
+Layer 2 — Gemini embedding similarity  (RETRIEVAL_DOCUMENT mode — catches
+                                         near-duplicates like "Nike India" vs "Nike")
 Layer 3 — Groq LLM adjudication        (ambiguous band only — auto-accepts
                                          the verdict, no human review queue)
 ```
@@ -17,14 +17,13 @@ Layer 3 — Groq LLM adjudication        (ambiguous band only — auto-accepts
 Every org name lookup writes a `resolution_logs` entry recording which
 layer resolved it, the score, and (for Layer 3) the LLM's reasoning.
 
-Full design rationale: see `valory-pipeline-spec.md` in this folder if
-included, or ask for it again — it documents every threshold, schema field,
-and edge case this code implements.
+For full design rationale, edge cases, and architecture decisions see
+[`approach.md`](./approach.md) in this repo.
 
 ## Prerequisites
 
 - Python 3.11+
-- A running MongoDB instance (local `mongod`, Docker, or Atlas free tier)
+- A MongoDB instance — local `mongod`, Docker, or [Atlas free tier](https://cloud.mongodb.com)
 - Free Gemini API key: https://aistudio.google.com/apikey
 - Free Groq API key: https://console.groq.com/keys
 
@@ -33,11 +32,22 @@ and edge case this code implements.
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+
+# Activate (Windows):
+venv\Scripts\activate
+
+# Activate (macOS/Linux):
+source venv/bin/activate
+
 pip install -r requirements.txt
 
-cp .env.example .env
-# edit .env: set MONGO_URI, GEMINI_API_KEY, GROQ_API_KEY
+copy .env.example .env    # Windows
+# cp .env.example .env    # macOS/Linux
+
+# Edit .env and set:
+#   MONGO_URI         — your MongoDB connection string
+#   GEMINI_API_KEY    — from https://aistudio.google.com/apikey
+#   GROQ_API_KEY      — from https://console.groq.com/keys
 ```
 
 ## Run the tests (no real DB or API keys needed — uses mongomock + mocks)
@@ -62,8 +72,8 @@ This loads `app/seed/athletes_seed.json` (20 athletes with deliberate
 near-duplicate org names — Nike/Nike India, Yonex/Yonex Sports India,
 Gopichand Academy/Gopichand Badminton Academy, SAI/Sports Authority of
 India, a shared coach across 3 athletes, and several exact-duplicate orgs)
-and prints a summary plus the final resolved org list with their known-name
-aliases. **Safe to re-run** — fully idempotent across all three collections.
+and prints live progress per athlete + a final summary with the resolved
+org list. **Safe to re-run** — fully idempotent across all three collections.
 
 ## Run the API
 
@@ -84,30 +94,43 @@ Endpoints:
 
 ## Run the frontend
 
-No build step — just open the file:
+No build step needed. Serve it with Python's built-in server:
 
 ```bash
-open frontend/index.html     # macOS
-# or just double-click it, or serve it with `python -m http.server` from /frontend
+cd frontend
+python -m http.server 3000
 ```
 
-It defaults to `http://127.0.0.1:8000` as the API base (editable in the
-top-right input if your backend runs elsewhere). Three tabs: Athletes,
-Organisations (with their known-name aliases), and the Resolution Log
-(shows which layer resolved each org name and why).
+Then open: http://127.0.0.1:3000
+
+Three tabs: Athletes, Organisations (with known-name aliases), and the
+Resolution Log (shows which layer resolved each org name and why).
 
 ## Tuning
 
 Thresholds live in `.env`:
-- `EMBEDDING_AUTO_MERGE_THRESHOLD` (default 0.88) — cosine similarity above
+- `EMBEDDING_AUTO_MERGE_THRESHOLD` (default `0.94`) — cosine similarity above
   this auto-merges without hitting the LLM
-- `EMBEDDING_AMBIGUOUS_FLOOR` (default 0.75) — below this, treated as a new
+- `EMBEDDING_AMBIGUOUS_FLOOR` (default `0.82`) — below this, treated as a new
   org with no LLM call; between the floor and the auto-merge threshold,
   Layer 3 (LLM) decides
 
-The stopword list used for normalization (`india`, `pvt`, `ltd`, etc.) is
-in `app/config.py` — extend it if your real data has other regional/legal
-suffixes.
+These values were calibrated against actual embedding scores from the seed
+dataset using `RETRIEVAL_DOCUMENT` task mode. If you change the embedding
+model, re-probe the scores and recalibrate. See `approach.md` for details.
+
+## Normalization
+
+Organisation names are normalized before matching: lowercase, strip diacritics,
+replace `&` → `and`, remove punctuation, collapse whitespace. No words are
+removed — normalization is identity-preserving. Semantic deduplication is
+handled by embeddings (Layer 2) and the LLM (Layer 3), not by normalization.
+
+If you change the normalization logic, backfill existing records:
+```bash
+cd backend
+python -m scripts.migrate_normalized_names
+```
 
 ## Known limitations / things to revisit with real data
 
@@ -119,5 +142,9 @@ suffixes.
   (`app/resolution/pipeline.py`, the `ambiguous` branch) — route those to a
   `pending_review` collection instead of calling the LLM.
 - Athlete dedup falls back to name-only matching when DOB is missing, and
-  flags this with a warning in the seed summary — worth eyeballing those
-  warnings after a real run in case two different people share a name.
+  flags the athlete document with `_dedup_warning` — worth checking those
+  after a real run in case two different people share a name.
+- The Groq model name (`GROQ_MODEL` in `.env`) can be deprecated without
+  notice. If Layer 3 silently creates new orgs instead of merging, check
+  `resolution_logs` for `method: "llm"` + `decision: "new_org"` entries —
+  the `llm_reasoning` field will show the actual error.

@@ -12,10 +12,10 @@ class Settings:
     GEMINI_EMBEDDING_MODEL: str = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
 
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "groq/compound-mini")
 
-    EMBEDDING_AUTO_MERGE_THRESHOLD: float = float(os.getenv("EMBEDDING_AUTO_MERGE_THRESHOLD", "0.88"))
-    EMBEDDING_AMBIGUOUS_FLOOR: float = float(os.getenv("EMBEDDING_AMBIGUOUS_FLOOR", "0.75"))
+    EMBEDDING_AUTO_MERGE_THRESHOLD: float = float(os.getenv("EMBEDDING_AUTO_MERGE_THRESHOLD", "0.94"))
+    EMBEDDING_AMBIGUOUS_FLOOR: float = float(os.getenv("EMBEDDING_AMBIGUOUS_FLOOR", "0.82"))
 
     VALID_RELATION_TYPES = {
         "brand", "training", "association", "ambassador", "endorsement", "coaching",
